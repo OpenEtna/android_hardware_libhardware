@@ -118,13 +118,13 @@
 /*****************************************************************************/
 
 static int sensors_control_device_close(struct hw_device_t *dev);
-static int sensors_control_open_data_source(struct sensors_control_device_t *dev);
+static native_handle_t* sensors_control_open_data_source(struct sensors_control_device_t *dev);
 static int sensors_control_activate(struct sensors_control_device_t *dev, 
             int handle, int enabled);
 static int sensors_control_wake(struct sensors_control_device_t *dev);
 
 static int sensors_data_device_close(struct hw_device_t *dev);
-static int sensors_data_data_open(struct sensors_data_device_t *dev, int fd);
+static int sensors_data_data_open(struct sensors_data_device_t *dev, native_handle_t* nh);
 static int sensors_data_data_close(struct sensors_data_device_t *dev);
 static int sensors_data_poll(struct sensors_data_device_t *dev, 
             sensors_data_t* data);
@@ -412,7 +412,7 @@ static uint32_t read_sensors_state(int fd)
 
 /*****************************************************************************/
 
-static int sensors_control_open_data_source(struct sensors_control_device_t *dev)
+static native_handle_t* sensors_control_open_data_source(struct sensors_control_device_t *dev)
 {
 	LOGI("sensors_control_open_data_source");
 
@@ -425,7 +425,10 @@ static int sensors_control_open_data_source(struct sensors_control_device_t *dev
       write(f,"1",2);
       close(f);
     }
-    return open_input();
+    
+    native_handle * nh = native_handle_create(1, 0);
+    nh->data[0] = open_input();
+    return nh;
 }
 
 static int sensors_control_activate(struct sensors_control_device_t *dev, 
@@ -598,6 +601,7 @@ static int sensors_device_open(const struct hw_module_t* module, const char* nam
         dev->device.common.module = module;
         dev->device.common.close = sensors_control_device_close;
         dev->device.open_data_source = sensors_control_open_data_source;
+        dev->device.close_data_source= 0;
         dev->device.activate = sensors_control_activate;
         dev->device.set_delay = sensors_control_delay;
         dev->device.wake = sensors_control_wake;
@@ -664,8 +668,9 @@ static const int ID_OR = 7; // orientation raw
 static sensors_data_t sSensors[MAX_NUM_SENSORS];
 static uint32_t sPendingSensors;
 
-static int sensors_data_data_open(struct sensors_data_device_t *dev, int fd)
+static int sensors_data_data_open(struct sensors_data_device_t *dev, native_handle_t* nh)
 {
+    int fd = nh->data[0];
     int i;
     LMSInit();
     memset(&sSensors, 0, sizeof(sSensors));
